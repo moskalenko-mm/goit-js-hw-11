@@ -1,10 +1,12 @@
 import { Notify } from 'notiflix/build/notiflix-notify-aio';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
-import axios from 'axios';
+import { getPhoto } from './getPhoto';
+
 let page = 1;
 let userRequest;
 let totalPages;
+let data;
 const searchForm = document.querySelector('#search-form');
 const gallery = document.querySelector('.gallery');
 const loadBtn = document.querySelector('.load-more');
@@ -20,52 +22,6 @@ const lightbox = new SimpleLightbox('.gallery a', {
 });
 
 lightbox.on('show.simplelightbox');
-
-function handleFormSubmit(event) {
-  event.preventDefault();
-  clearMarkup();
-  page = 1;
-  userRequest = event.currentTarget.searchQuery.value.trim();
-  getPhoto(userRequest, page);
-  //searchForm.reset();
-}
-
-async function getPhoto(userRequest, page) {
-  await axios
-    .get('https://pixabay.com/api/', {
-      params: {
-        key: '35077091-92ff1995237b3143746e74653',
-        q: userRequest,
-        image_type: 'photo',
-        orientation: 'horizontal',
-        safesearch: true,
-        per_page: 40,
-        page: page,
-      },
-    })
-    .then(response => {
-      console.log(response);
-      if (response.data.totalHits === 0) {
-        Notify.failure(
-          'Sorry, there are no images matching your search query. Please try again.'
-        );
-        clearMarkup();
-        loadBtn.classList.add('visually-hidden');
-      } else {
-        if (page === 1) {
-          Notify.success(`Hooray! We found ${response.data.totalHits} images.`);
-          totalPages = Math.ceil(response.data.totalHits / 40);
-        }
-        renderCardsList(response.data.hits);
-        lightbox.refresh();
-        console.log(totalPages);
-        console.log(page);
-        if (totalPages !== page) {
-          loadBtn.classList.remove('visually-hidden');
-        }
-      }
-    });
-}
 
 function renderCardsList(photos) {
   const markup = photos
@@ -96,14 +52,58 @@ function renderCardsList(photos) {
   gallery.insertAdjacentHTML('beforeend', markup);
 }
 
-function loadNextPage() {
+async function handleFormSubmit(event) {
+  event.preventDefault();
+  clearMarkup();
+  page = 1;
+  userRequest = event.currentTarget.searchQuery.value.trim();
+  if (userRequest) {
+    data = await getPhoto(userRequest, page);
+    console.log(data);
+    if (data.totalHits === 0) {
+      Notify.failure(
+        'Sorry, there are no images matching your search query. Please try again.'
+      );
+      clearMarkup();
+      loadBtn.classList.add('visually-hidden');
+    } else {
+      if (page === 1) {
+        Notify.success(`Hooray! We found ${data.totalHits} images.`);
+        totalPages = Math.ceil(data.totalHits / 40);
+      }
+      if (totalPages === page) {
+        loadBtn.classList.add('visually-hidden');
+        Notify.info(
+          "We're sorry, but you've reached the end of search results."
+        );
+      }
+      renderCardsList(data.hits);
+      lightbox.refresh();
+      console.log(totalPages);
+      console.log(page);
+      if (totalPages !== page) {
+        loadBtn.classList.remove('visually-hidden');
+      }
+    }
+  } else {
+    Notify.failure(
+      'Sorry, there are no images matching your search query. Please try again.'
+    );
+    clearMarkup();
+  }
+  searchForm.reset();
+}
+
+async function loadNextPage() {
   page += 1;
 
   if (totalPages === page) {
     loadBtn.classList.add('visually-hidden');
     Notify.info("We're sorry, but you've reached the end of search results.");
   }
-  getPhoto(userRequest, page);
+  //getPhoto(userRequest, page);
+  data = await getPhoto(userRequest, page);
+  renderCardsList(data.hits);
 }
 function clearMarkup() {
   gallery.innerHTML = '';
